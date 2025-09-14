@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moving Flashcards Game</title>
+    <link rel="stylesheet" href="landing.css" />
+    <script src="./cursor.js" defer></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Trebuchet MS", Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a, #232323, #1f1f1f);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+            background-attachment: fixed;
+            color: #e0e0e0;
+        }
+
+        .moving-flashcards-container {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            height: 80vh;
+            overflow: hidden;
+            background: #2a2a2a;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .game-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #333333;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 1px solid #404040;
+        }
+
+        .game-info h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #e0e0e0;
+        }
+
+        .score {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #e0e0e0;
+        }
+
+        .back-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #4d6ef5, #6b8afd);
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            background: linear-gradient(135deg, #d5bdaf, #e3d5ca);
+        }
+
+        #progressBarContainer {
+            flex: 1;
+            max-width: 300px;
+            height: 18px;
+            background: #222222;
+            border-radius: 9px;
+            margin: 0 1.5rem;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            border: 2px solid #404040;
+            display: flex;
+            align-items: center;
+            z-index: 20;
+        }
+        #progressBar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #4d6ef5 0%, #6b8afd 100%);
+            border-radius: 9px;
+            transition: width 0.4s cubic-bezier(.4,0,.2,1);
+        }
+
+        .cards-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .moving-card {
+            position: absolute;
+            width: 180px;
+            height: 80px;
+            background: #333333;
+            border: 2px solid #404040;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: normal;
+            color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            word-wrap: break-word;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease, opacity 0.3s ease;
+            user-select: none;
+            z-index: 5;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .moving-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            border-color: #00e3cc;
+        }
+
+        .moving-card.selected {
+            background: #00e3cc;
+            color: #ffffff;
+            border-color: #00bfac;
+            transform: scale(1.05);
+            box-shadow: 0 6px 25px rgba(77, 110, 245, 0.4);
+        }
+
+        .moving-card.matched {
+            background: #d6ccc2;
+            color: #6c584c;
+            border-color: #e3d5ca;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .moving-card.wrong {
+            background: #f7c5c5;
+            color: #e74c3c;
+            border-color: #e74c3c;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* End Game Popup Styles are now in landing.css */
+    </style>
+</head>
+<body>
+    <div class="moving-flashcards-container">
+        <div class="game-info">
+            <h1 id="gameTitle">Moving Flashcards Game</h1>
+            <div class="score">Score: <span id="score">0</span></div>
+            <div id="progressBarContainer">
+                <div id="progressBar"></div>
+            </div>
+            <button id="backToMenu" class="back-btn">Back to Menu</button>
+        </div>
+        <div class="cards-container" id="cardsContainer">
+            <!-- Cards will be generated here -->
+        </div>
+    </div>
+
+    <script>
+        // Categories data
+        const categories = {
+            DataStructures: [
+                { term: "Stack", definition: "LIFO data structure where elements are added/removed from the top" },
+                { term: "Queue", definition: "FIFO data structure where elements enter at rear and exit at front" },
+                { term: "Hash Table", definition: "data structure that maps keys to values using a hash function" },
+                { term: "Graph", definition: "collection of nodes (vertices) connected by edges" },
+                { term: "Tree", definition: "hierarchical data structure with root node and child nodes" },
+            ],
+            Systems: [
+                { term: "Process", definition: "a running instance of a program" },
+                { term: "Thread", definition: "a lightweight unit of execution inside a process" },
+                { term: "Scheduler", definition: "decides which process runs at what time" },
+                { term: "Deadlock", definition: "when processes block each other and none can continue" },
+                { term: "Kernel", definition: "the core part of an OS managing resources" },
+                { term: "Context Switch", definition: "when the CPU switches from one process/thread to another" },
+            ],
+            Physics: [
+                { term: "Entropy", definition: "measure of disorder or randomness in a system" },
+                { term: "Quantum", definition: "smallest discrete unit of energy or matter" },
+                { term: "Momentum", definition: "product of mass and velocity (p = mv)" },
+                { term: "Capacitance", definition: "ability to store electrical charge (C = Q/V)" },
+                { term: "Inductance", definition: "property of conductor opposing change in current flow" },
+                { term: "Photon", definition: "particle of light carrying electromagnetic energy" },
+                { term: "Superconductor", definition: "material with zero electrical resistance at low temperatures" },
+                { term: "Wavelength", definition: "distance between successive wave crests" },
+                { term: "Torque", definition: "rotational force causing angular acceleration" },
+                { term: "Thermodynamics", definition: "study of heat, energy, and work relationships" },
+            ],
+            Chemistry: [
+                { term: "Catalyst", definition: "substance that speeds up reactions without being consumed" },
+                { term: "Molarity", definition: "concentration measured in moles per liter" },
+                { term: "Oxidation", definition: "loss of electrons or increase in oxidation state" },
+                { term: "Reduction", definition: "gain of electrons or decrease in oxidation state" },
+                { term: "Isotope", definition: "atoms with same protons but different neutrons" },
+                { term: "Covalent Bond", definition: "chemical bond formed by sharing electron pairs" },
+                { term: "pH", definition: "measure of hydrogen ion concentration (acidity/basicity)" },
+                { term: "Electronegativity", definition: "atom's ability to attract electrons in a bond" },
+                { term: "Equilibrium", definition: "state where forward and reverse reaction rates are equal" },
+                { term: "Stoichiometry", definition: "calculation of reactants and products in chemical reactions" },
+            ],
+            Biology: [
+                { term: "Mitosis", definition: "cell division producing two identical daughter cells" },
+                { term: "Meiosis", definition: "cell division producing four haploid gametes" },
+                { term: "Photosynthesis", definition: "process converting light energy to chemical energy in plants" },
+                { term: "ATP", definition: "adenosine triphosphate - cellular energy currency" },
+                { term: "DNA Replication", definition: "process of copying DNA before cell division" },
+                { term: "Transcription", definition: "synthesis of RNA from DNA template" },
+                { term: "Translation", definition: "synthesis of proteins from mRNA" },
+                { term: "Enzyme", definition: "biological catalyst speeding up biochemical reactions" },
+                { term: "Homeostasis", definition: "maintaining stable internal conditions in organisms" },
+                { term: "Osmosis", definition: "water movement across semipermeable membrane" },
+            ]
+        };
+
+        // Game state
+        let positions = [];
+        let selectedCards = [];
+        let score = 0;
+        let mistakes = 0;
+        let gameCards = [];
+        let lockBoard = false;
+        let moveInterval;
+        let startTime;
+
+        // Get deck data from landing page
+        const deckData = JSON.parse(localStorage.getItem('flashmatch.pendingDeck') || 'null');
+        const options = JSON.parse(localStorage.getItem('flashmatch.pendingOptions') || '{"hard": false}');
+        
+        // Clear the stored data after retrieving it
+        localStorage.removeItem('flashmatch.pendingDeck');
+        localStorage.removeItem('flashmatch.pendingOptions');
+
+        // If no deck data, use default category
+        let termsList;
+        if (deckData && deckData.pairs) {
+            // Use the deck data from landing page
+            termsList = deckData.pairs.map(pair => ({
+                term: pair.term,
+                definition: pair.def
+            }));
+        } else {
+            // Fallback to default category
+            const selectedCategory = 'DataStructures';
+            termsList = categories[selectedCategory];
+        }
+
+        // Leaderboard functions
+        function getLeaderboard() {
+            return JSON.parse(localStorage.getItem('flashmatch.leaderboard') || '[]');
+        }
+
+        function saveToLeaderboard(score, time, mistakes, mode, topic) {
+            const leaderboard = getLeaderboard();
+            const newEntry = {
+                score,
+                time,
+                mistakes,
+                mode,
+                topic,
+                date: new Date().toISOString(),
+                accuracy: Math.round((score / (score + mistakes)) * 100) || 0
+            };
+            leaderboard.push(newEntry);
+            leaderboard.sort((a, b) => {
+                // Sort by score (desc), then by time (asc), then by mistakes (asc)
+                if (a.score !== b.score) return b.score - a.score;
+                if (a.time !== b.time) return a.time - b.time;
+                return a.mistakes - b.mistakes;
+            });
+            // Keep only top 10
+            leaderboard.splice(10);
+            localStorage.setItem('flashmatch.leaderboard', JSON.stringify(leaderboard));
+        }
+
+        function showEndGamePopup() {
+            const totalTime = Math.floor((Date.now() - startTime) / 1000);
+            const topic = deckData?.topic || 'Default Topic';
+            const mode = 'Moving Cards';
+            
+            // Save to leaderboard
+            saveToLeaderboard(score, totalTime, mistakes, mode, topic);
+            
+            // Create popup
+            const popup = document.createElement('div');
+            popup.className = 'end-game-popup';
+            popup.innerHTML = `
+      <div class="popup-content">
+        <h2>🎉 Game Complete!</h2>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-label">Score</div>
+            <div class="stat-value">${score}/${score + mistakes}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Time</div>
+            <div class="stat-value">${totalTime}s</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Accuracy</div>
+            <div class="stat-value">${Math.round((score / (score + mistakes)) * 100) || 0}%</div>
+            <div class="accuracy-bar-container">
+              <div class="accuracy-bar" style="width: ${Math.round((score / (score + mistakes)) * 100) || 0}%"></div>
+            </div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Mistakes</div>
+            <div class="stat-value">${mistakes}</div>
+          </div>
+        </div>
+        <div class="leaderboard">
+          <h3>🏆 Leaderboard</h3>
+          <div class="leaderboard-list" id="leaderboardList">
+            ${generateLeaderboardHTML()}
+          </div>
+        </div>
+        <div class="popup-actions">
+          <button class="btn" onclick="location.reload()">Play Again</button>
+          <button class="btn secondary" onclick="window.location.href='index.html'">Main Menu</button>
+        </div>
+      </div>
+            `;
+            document.body.appendChild(popup);
+        }
+
+        function generateLeaderboardHTML() {
+            const leaderboard = getLeaderboard();
+            return leaderboard.map((entry, index) => `
+                <div class="leaderboard-entry ${index < 3 ? 'top-three' : ''}">
+                    <span class="rank">${index + 1}</span>
+                    <span class="entry-info">
+                        <span class="entry-score">${entry.score}/${entry.score + entry.mistakes}</span>
+                        <span class="entry-time">${entry.time}s</span>
+                        <span class="entry-topic">${entry.topic}</span>
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // Initialize game
+        function initGame() {
+            // Reset game state
+            score = 0;
+            mistakes = 0;
+            startTime = Date.now();
+            updateProgressBar();
+            
+            // Update game title if we have deck data
+            if (deckData && deckData.topic) {
+                document.getElementById('gameTitle').textContent = `Moving Flashcards - ${deckData.topic}`;
+            }
+            
+            // Get number of pairs from options
+            const numPairs = options.cardCount || 4;
+            const pairs = termsList.slice(0, numPairs);
+            gameCards = [];
+            
+            pairs.forEach(pair => {
+                gameCards.push({ text: pair.term, match: pair.definition, type: "term" });
+                gameCards.push({ text: pair.definition, match: pair.term, type: "definition" });
+            });
+            
+            // Shuffle cards randomly
+            gameCards = gameCards.sort(() => Math.random() - 0.5);
+            
+            // Create card elements
+            createCards();
+            
+            // Start movement
+            startMovement();
+            
+            // Initialize progress bar
+            updateProgressBar();
+        }
+
+        function createCards() {
+            const container = document.getElementById('cardsContainer');
+            container.innerHTML = '';
+            
+            gameCards.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'moving-card';
+                cardElement.textContent = card.text;
+                cardElement.dataset.index = index;
+                cardElement.addEventListener('click', () => handleCardClick(index, card));
+                container.appendChild(cardElement);
+            });
+        }
+
+        function startMovement() {
+            const container = document.querySelector('.moving-flashcards-container');
+            const width = container.offsetWidth - 200;
+            const height = container.offsetHeight - 200;
+
+            // Initialize positions
+            positions = gameCards.map(() => ({
+                x: Math.floor(Math.random() * width),
+                y: Math.floor(Math.random() * height),
+                vx: (Math.random() - 0.5) * 3, // Increased speed
+                vy: (Math.random() - 0.5) * 3  // Increased speed
+            }));
+
+            // Start movement animation (faster)
+            moveInterval = setInterval(() => {
+                const container = document.querySelector('.moving-flashcards-container');
+                const width = container.offsetWidth - 200;
+                const height = container.offsetHeight - 200;
+                
+                positions = positions.map(pos => {
+                    let newX = pos.x + pos.vx;
+                    let newY = pos.y + pos.vy;
+                    let newVx = pos.vx;
+                    let newVy = pos.vy;
+
+                    // Bounce off walls
+                    if (newX <= 0 || newX >= width) {
+                        newVx = -newVx;
+                        newX = Math.max(0, Math.min(width, newX));
+                    }
+                    if (newY <= 0 || newY >= height) {
+                        newVy = -newVy;
+                        newY = Math.max(0, Math.min(height, newY));
+                    }
+
+                    return {
+                        x: newX,
+                        y: newY,
+                        vx: newVx,
+                        vy: newVy
+                    };
+                });
+
+                // Update card positions
+                updateCardPositions();
+            }, 30); // Faster movement (was 50ms, now 30ms)
+        }
+
+        function updateCardPositions() {
+            const cards = document.querySelectorAll('.moving-card');
+            cards.forEach((card, index) => {
+                if (positions[index]) {
+                    card.style.left = `${positions[index].x}px`;
+                    card.style.top = `${positions[index].y}px`;
+                }
+            });
+        }
+
+        function handleCardClick(index, card) {
+            if (lockBoard) return;
+            if (selectedCards.find(sc => sc.index === index)) return;
+
+            selectedCards.push({ index, card });
+            
+            // Update visual state
+            const cardElement = document.querySelector(`[data-index="${index}"]`);
+            cardElement.classList.add('selected');
+
+            if (selectedCards.length === 2) {
+                lockBoard = true;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [first, second] = selectedCards;
+
+            if (first.card.match === second.card.text && second.card.match === first.card.text) {
+                // Match found
+                score++;
+                document.getElementById('score').textContent = score;
+                updateProgressBar();
+                
+                // Mark as matched and then disappear
+                const firstCard = document.querySelector(`[data-index="${first.index}"]`);
+                const secondCard = document.querySelector(`[data-index="${second.index}"]`);
+                firstCard.classList.remove('selected');
+                secondCard.classList.remove('selected');
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+                
+                // Make cards disappear after a short delay
+                setTimeout(() => {
+                    firstCard.style.opacity = '0';
+                    secondCard.style.opacity = '0';
+                    setTimeout(() => {
+                        firstCard.style.display = 'none';
+                        secondCard.style.display = 'none';
+                    }, 300);
+                }, 500);
+                
+                selectedCards = [];
+                lockBoard = false;
+                
+                // Check if game is complete
+                if (score === (gameCards.length / 2)) {
+                    setTimeout(() => {
+                        showEndGamePopup();
+                    }, 1000);
+                }
+            } else {
+                // No match - increment mistakes
+                mistakes++;
+                const firstCard = document.querySelector(`[data-index="${first.index}"]`);
+                const secondCard = document.querySelector(`[data-index="${second.index}"]`);
+                firstCard.classList.add('wrong');
+                secondCard.classList.add('wrong');
+                
+                setTimeout(() => {
+                    firstCard.classList.remove('selected', 'wrong');
+                    secondCard.classList.remove('selected', 'wrong');
+                    selectedCards = [];
+                    lockBoard = false;
+                }, 1000);
+            }
+        }
+
+        // Progress bar logic for moving cards game
+        const progressBar = document.getElementById('progressBar');
+        function updateProgressBar() {
+          // Each correct match increments score
+          // Total pairs = termsList.length (or numPairs)
+          const matchedPairs = score;
+          const totalPairs = options.cardCount || 4;
+          const percent = Math.round((matchedPairs / totalPairs) * 100);
+          progressBar.style.width = percent + "%";
+        }
+
+        // Back to menu functionality
+        document.getElementById('backToMenu').addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        // Start the game when page loads
+        window.addEventListener('load', initGame);
+    </script>
+</body>
+</html>
