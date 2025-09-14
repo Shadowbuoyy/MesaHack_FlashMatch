@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-Enabled FlashMatch</title>
+    <style>
+        body {
+            font-family: "Trebuchet MS", Arial, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        h1 {
+            color: #00e3cc;
+            margin-bottom: 30px;
+        }
+        .voice-controls {
+            background: #2a2a2a;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #404040;
+        }
+        .voice-btn {
+            background: linear-gradient(135deg, #00e3cc, #00bfac);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .voice-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 227, 204, 0.3);
+        }
+        .voice-btn.listening {
+            background: linear-gradient(135deg, #ff6b6b, #ff5252);
+            animation: pulse 1.5s infinite;
+        }
+        .voice-btn.speaking {
+            background: linear-gradient(135deg, #4ecdc4, #45b7d1);
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
+        }
+        .card-display {
+            background: #333333;
+            border-radius: 15px;
+            padding: 40px;
+            margin: 20px 0;
+            font-size: 24px;
+            border: 2px solid #404040;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .feedback {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        .correct {
+            background: rgba(76, 175, 80, 0.2);
+            border: 2px solid #4caf50;
+            color: #4caf50;
+        }
+        .incorrect {
+            background: rgba(244, 67, 54, 0.2);
+            border: 2px solid #f44336;
+            color: #f44336;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 8px;
+            background: #2a2a2a;
+            border: 1px solid #404040;
+        }
+        .score-display {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        .score-item {
+            background: #333333;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #404040;
+        }
+        .score-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00e3cc;
+        }
+        .accessibility-controls {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #404040;
+        }
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .slider {
+            width: 200px;
+            height: 5px;
+            border-radius: 5px;
+            background: #404040;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00e3cc;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Voice-Enabled FlashMatch</h1>
+        
+        <div class="voice-controls">
+            <h2>Voice Commands</h2>
+            <button id="startBtn" class="voice-btn">Start Voice Mode</button>
+            <button id="listenBtn" class="voice-btn" disabled>Listen for Answer</button>
+            <button id="speakBtn" class="voice-btn">Speak Question</button>
+            <button id="skipBtn" class="voice-btn">Skip Question</button>
+        </div>
+
+        <div class="accessibility-controls">
+            <h3>Accessibility Settings</h3>
+            <div class="control-row">
+                <label>Speech Rate:</label>
+                <input type="range" id="rateSlider" class="slider" min="0.5" max="2" step="0.1" value="1">
+                <span id="rateValue">1.0x</span>
+            </div>
+            <div class="control-row">
+                <label>Speech Pitch:</label>
+                <input type="range" id="pitchSlider" class="slider" min="0" max="2" step="0.1" value="1">
+                <span id="pitchValue">1.0</span>
+            </div>
+            <div class="control-row">
+                <label>Volume:</label>
+                <input type="range" id="volumeSlider" class="slider" min="0" max="1" step="0.1" value="1">
+                <span id="volumeValue">100%</span>
+            </div>
+        </div>
+
+        <div class="card-display" id="cardDisplay">
+            Press "Start Voice Mode" to begin
+        </div>
+
+        <div class="status" id="status">Ready to start</div>
+        <div id="feedback" class="feedback" style="display: none;"></div>
+
+        <div class="score-display">
+            <div class="score-item">
+                <div class="score-value" id="correctCount">0</div>
+                <div>Correct</div>
+            </div>
+            <div class="score-item">
+                <div class="score-value" id="totalCount">0</div>
+                <div>Total</div>
+            </div>
+            <div class="score-item">
+                <div class="score-value" id="accuracyRate">0%</div>
+                <div>Accuracy</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class VoiceFlashcards {
+            constructor() {
+                this.isListening = false;
+                this.currentCard = null;
+                this.correctCount = 0;
+                this.totalCount = 0;
+                this.cards = [
+                    { term: "Photosynthesis", definition: "process converting light energy to chemical energy in plants" },
+                    { term: "Mitosis", definition: "cell division producing two identical daughter cells" },
+                    { term: "ATP", definition: "adenosine triphosphate cellular energy currency" },
+                    { term: "DNA", definition: "deoxyribonucleic acid genetic material" },
+                    { term: "Enzyme", definition: "biological catalyst speeding up biochemical reactions" },
+                    { term: "Osmosis", definition: "water movement across semipermeable membrane" },
+                    { term: "Meiosis", definition: "cell division producing four haploid gametes" },
+                    { term: "Chromosome", definition: "structure containing DNA and proteins" }
+                ];
+                
+                this.initializeVoice();
+                this.setupEventListeners();
+                this.shuffleCards();
+            }
+
+            initializeVoice() {
+                // Check browser support
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    this.showStatus('Speech recognition not supported in this browser', 'error');
+                    return;
+                }
+
+                // Initialize Speech Recognition
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                this.recognition.continuous = false;
+                this.recognition.interimResults = false;
+                this.recognition.lang = 'en-US';
+
+                this.recognition.onstart = () => {
+                    this.isListening = true;
+                    this.updateListenButton();
+                    this.showStatus('Listening... Speak your answer now');
+                };
+
+                this.recognition.onresult = (event) => {
+                    const answer = event.results[0][0].transcript.toLowerCase();
+                    this.processAnswer(answer);
+                };
+
+                this.recognition.onerror = (event) => {
+                    this.showStatus(`Speech recognition error: ${event.error}`, 'error');
+                    this.isListening = false;
+                    this.updateListenButton();
+                };
+
+                this.recognition.onend = () => {
+                    this.isListening = false;
+                    this.updateListenButton();
+                };
+
+                // Initialize Speech Synthesis
+                this.synth = window.speechSynthesis;
+                this.setupVoiceControls();
+            }
+
+            setupVoiceControls() {
+                const rateSlider = document.getElementById('rateSlider');
+                const pitchSlider = document.getElementById('pitchSlider');
+                const volumeSlider = document.getElementById('volumeSlider');
+
+                rateSlider.addEventListener('input', (e) => {
+                    document.getElementById('rateValue').textContent = e.target.value + 'x';
+                });
+
+                pitchSlider.addEventListener('input', (e) => {
+                    document.getElementById('pitchValue').textContent = e.target.value;
+                });
+
+                volumeSlider.addEventListener('input', (e) => {
+                    document.getElementById('volumeValue').textContent = Math.round(e.target.value * 100) + '%';
+                });
+            }
+
+            setupEventListeners() {
+                document.getElementById('startBtn').addEventListener('click', () => this.startGame());
+                document.getElementById('listenBtn').addEventListener('click', () => this.startListening());
+                document.getElementById('speakBtn').addEventListener('click', () => this.speakQuestion());
+                document.getElementById('skipBtn').addEventListener('click', () => this.skipQuestion());
+            }
+
+            shuffleCards() {
+                this.cards = this.cards.sort(() => Math.random() - 0.5);
+                this.cardIndex = 0;
+            }
+
+            startGame() {
+                this.correctCount = 0;
+                this.totalCount = 0;
+                this.shuffleCards();
+                this.nextCard();
+                this.updateScore();
+                
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('listenBtn').disabled = false;
+                document.getElementById('speakBtn').disabled = false;
+                document.getElementById('skipBtn').disabled = false;
+                
+                this.showStatus('Game started! Press "Speak Question" to hear the definition');
+            }
+
+            nextCard() {
+                if (this.cardIndex >= this.cards.length) {
+                    this.endGame();
+                    return;
+                }
+
+                this.currentCard = this.cards[this.cardIndex];
+                document.getElementById('cardDisplay').textContent = this.currentCard.definition;
+                document.getElementById('feedback').style.display = 'none';
+                this.showStatus(`Card ${this.cardIndex + 1} of ${this.cards.length}. What term matches this definition?`);
+            }
+
+            speakQuestion() {
+                if (!this.currentCard) return;
+
+                const utterance = new SpeechSynthesisUtterance(
+                    `What term matches this definition: ${this.currentCard.definition}`
+                );
+                
+                utterance.rate = document.getElementById('rateSlider').value;
+                utterance.pitch = document.getElementById('pitchSlider').value;
+                utterance.volume = document.getElementById('volumeSlider').value;
+                
+                const speakBtn = document.getElementById('speakBtn');
+                speakBtn.classList.add('speaking');
+                speakBtn.textContent = 'Speaking...';
+                
+                utterance.onend = () => {
+                    speakBtn.classList.remove('speaking');
+                    speakBtn.textContent = 'Speak Question';
+                };
+
+                this.synth.speak(utterance);
+            }
+
+            startListening() {
+                if (this.isListening) {
+                    this.recognition.stop();
+                    return;
+                }
+
+                if (!this.currentCard) {
+                    this.showStatus('No card available. Start the game first!');
+                    return;
+                }
+
+                this.recognition.start();
+            }
+
+            processAnswer(answer) {
+                const correctTerm = this.currentCard.term.toLowerCase();
+                const similarity = this.calculateSimilarity(answer, correctTerm);
+                
+                this.totalCount++;
+                
+                if (similarity > 0.7 || answer.includes(correctTerm) || correctTerm.includes(answer)) {
+                    this.correctCount++;
+                    this.showFeedback(`Correct! "${answer}" matches "${this.currentCard.term}"`, 'correct');
+                    this.speak(`Correct! The answer is ${this.currentCard.term}`);
+                } else {
+                    this.showFeedback(`Incorrect. You said "${answer}" but the answer is "${this.currentCard.term}"`, 'incorrect');
+                    this.speak(`Incorrect. The correct answer is ${this.currentCard.term}`);
+                }
+                
+                this.updateScore();
+                
+                setTimeout(() => {
+                    this.cardIndex++;
+                    this.nextCard();
+                }, 3000);
+            }
+
+            calculateSimilarity(str1, str2) {
+                const longer = str1.length > str2.length ? str1 : str2;
+                const shorter = str1.length > str2.length ? str2 : str1;
+                
+                if (longer.length === 0) return 1.0;
+                
+                const editDistance = this.levenshteinDistance(longer, shorter);
+                return (longer.length - editDistance) / longer.length;
+            }
+
+            levenshteinDistance(str1, str2) {
+                const matrix = [];
+                
+                for (let i = 0; i <= str2.length; i++) {
+                    matrix[i] = [i];
+                }
+                
+                for (let j = 0; j <= str1.length; j++) {
+                    matrix[0][j] = j;
+                }
+                
+                for (let i = 1; i <= str2.length; i++) {
+                    for (let j = 1; j <= str1.length; j++) {
+                        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                            matrix[i][j] = matrix[i - 1][j - 1];
+                        } else {
+                            matrix[i][j] = Math.min(
+                                matrix[i - 1][j - 1] + 1,
+                                matrix[i][j - 1] + 1,
+                                matrix[i - 1][j] + 1
+                            );
+                        }
+                    }
+                }
+                
+                return matrix[str2.length][str1.length];
+            }
+
+            speak(text) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = document.getElementById('rateSlider').value;
+                utterance.pitch = document.getElementById('pitchSlider').value;
+                utterance.volume = document.getElementById('volumeSlider').value;
+                this.synth.speak(utterance);
+            }
+
+            skipQuestion() {
+                if (!this.currentCard) return;
+                
+                this.totalCount++;
+                this.showFeedback(`Skipped. The answer was "${this.currentCard.term}"`, 'incorrect');
+                this.speak(`The answer was ${this.currentCard.term}`);
+                this.updateScore();
+                
+                setTimeout(() => {
+                    this.cardIndex++;
+                    this.nextCard();
+                }, 2000);
+            }
+
+            showFeedback(message, type) {
+                const feedback = document.getElementById('feedback');
+                feedback.textContent = message;
+                feedback.className = `feedback ${type}`;
+                feedback.style.display = 'block';
+            }
+
+            showStatus(message, type = 'info') {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.style.color = type === 'error' ? '#ff6b6b' : '#e0e0e0';
+            }
+
+            updateListenButton() {
+                const btn = document.getElementById('listenBtn');
+                if (this.isListening) {
+                    btn.classList.add('listening');
+                    btn.textContent = 'Stop Listening';
+                } else {
+                    btn.classList.remove('listening');
+                    btn.textContent = 'Listen for Answer';
+                }
+            }
+
+            updateScore() {
+                document.getElementById('correctCount').textContent = this.correctCount;
+                document.getElementById('totalCount').textContent = this.totalCount;
+                const accuracy = this.totalCount > 0 ? Math.round((this.correctCount / this.totalCount) * 100) : 0;
+                document.getElementById('accuracyRate').textContent = accuracy + '%';
+            }
+
+            endGame() {
+                this.showStatus(`Game completed! Final score: ${this.correctCount}/${this.totalCount}`);
+                this.speak(`Game completed! You got ${this.correctCount} out of ${this.totalCount} questions correct.`);
+                
+                document.getElementById('cardDisplay').textContent = 'Game Complete!';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('listenBtn').disabled = true;
+                document.getElementById('speakBtn').disabled = true;
+                document.getElementById('skipBtn').disabled = true;
+            }
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            new VoiceFlashcards();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlashMatch - Learning Analytics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            font-family: "Trebuchet MS", Arial, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #00e3cc;
+            margin-bottom: 30px;
+        }
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            background: #2a2a2a;
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid #404040;
+        }
+        .chart-title {
+            color: #00e3cc;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #333333;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #404040;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00e3cc;
+        }
+        .stat-label {
+            color: #888888;
+            margin-top: 5px;
+        }
+        .insights-panel {
+            background: #2a2a2a;
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid #404040;
+        }
+        .insight {
+            background: #333333;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #00e3cc;
+        }
+        .difficulty-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .easy { background: #27ae60; color: white; }
+        .medium { background: #f39c12; color: white; }
+        .hard { background: #e74c3c; color: white; }
+        canvas {
+            max-height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Learning Analytics Dashboard</h1>
+        
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-value" id="totalGames">0</div>
+                <div class="stat-label">Games Played</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgAccuracy">0%</div>
+                <div class="stat-label">Average Accuracy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalTime">0</div>
+                <div class="stat-label">Total Study Time (min)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="strongestTopic">-</div>
+                <div class="stat-label">Strongest Topic</div>
+            </div>
+        </div>
+
+        <div class="analytics-grid">
+            <div class="chart-container">
+                <div class="chart-title">Progress Over Time</div>
+                <canvas id="progressChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Topic Performance</div>
+                <canvas id="topicChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Learning Curve</div>
+                <canvas id="learningChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Time Spent by Subject</div>
+                <canvas id="timeChart"></canvas>
+            </div>
+        </div>
+
+        <div class="insights-panel">
+            <h2 style="color: #00e3cc; margin-top: 0;">AI-Powered Learning Insights</h2>
+            <div id="insights-container">
+                <!-- Insights will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Generate sample learning data
+        function generateSampleData() {
+            const topics = ['Biology', 'Chemistry', 'Physics', 'C++ Programming', 'Data Structures'];
+            const games = [];
+            
+            for (let i = 0; i < 25; i++) {
+                games.push({
+                    date: new Date(Date.now() - (24 - i) * 24 * 60 * 60 * 1000),
+                    topic: topics[Math.floor(Math.random() * topics.length)],
+                    score: Math.floor(Math.random() * 10) + 5,
+                    mistakes: Math.floor(Math.random() * 5),
+                    time: Math.floor(Math.random() * 120) + 30,
+                    accuracy: Math.floor(Math.random() * 30) + 70
+                });
+            }
+            return games.sort((a, b) => a.date - b.date);
+        }
+
+        const gameData = generateSampleData();
+
+        // Update overview stats
+        function updateOverviewStats() {
+            const totalGames = gameData.length;
+            const avgAccuracy = Math.round(gameData.reduce((acc, game) => acc + game.accuracy, 0) / totalGames);
+            const totalTime = Math.round(gameData.reduce((acc, game) => acc + game.time, 0) / 60);
+            
+            // Find strongest topic
+            const topicPerformance = {};
+            gameData.forEach(game => {
+                if (!topicPerformance[game.topic]) {
+                    topicPerformance[game.topic] = [];
+                }
+                topicPerformance[game.topic].push(game.accuracy);
+            });
+            
+            const strongestTopic = Object.keys(topicPerformance).reduce((best, topic) => {
+                const avg = topicPerformance[topic].reduce((a, b) => a + b, 0) / topicPerformance[topic].length;
+                const bestAvg = topicPerformance[best] ? 
+                    topicPerformance[best].reduce((a, b) => a + b, 0) / topicPerformance[best].length : 0;
+                return avg > bestAvg ? topic : best;
+            });
+
+            document.getElementById('totalGames').textContent = totalGames;
+            document.getElementById('avgAccuracy').textContent = avgAccuracy + '%';
+            document.getElementById('totalTime').textContent = totalTime;
+            document.getElementById('strongestTopic').textContent = strongestTopic;
+        }
+
+        // Progress over time chart
+        function createProgressChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            const last7Days = gameData.slice(-7);
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: last7Days.map(game => game.date.toLocaleDateString()),
+                    datasets: [{
+                        label: 'Accuracy %',
+                        data: last7Days.map(game => game.accuracy),
+                        borderColor: '#00e3cc',
+                        backgroundColor: 'rgba(0, 227, 204, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#888888' },
+                            grid: { color: '#404040' }
+                        },
+                        x: {
+                            ticks: { color: '#888888' },
+                            grid: { color: '#404040' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Topic performance radar chart
+        function createTopicChart() {
+            const ctx = document.getElementById('topicChart').getContext('2d');
+            const topics = [...new Set(gameData.map(game => game.topic))];
+            const topicAvgs = topics.map(topic => {
+                const topicGames = gameData.filter(game => game.topic === topic);
+                return topicGames.reduce((acc, game) => acc + game.accuracy, 0) / topicGames.length;
+            });
+
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: topics,
+                    datasets: [{
+                        label: 'Performance',
+                        data: topicAvgs,
+                        backgroundColor: 'rgba(0, 227, 204, 0.2)',
+                        borderColor: '#00e3cc',
+                        pointBackgroundColor: '#00e3cc',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#00e3cc'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#888888' },
+                            grid: { color: '#404040' },
+                            pointLabels: { color: '#e0e0e0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Learning curve chart
+        function createLearningChart() {
+            const ctx = document.getElementById('learningChart').getContext('2d');
+            const movingAvg = [];
+            const window = 5;
+            
+            for (let i = window - 1; i < gameData.length; i++) {
+                const slice = gameData.slice(i - window + 1, i + 1);
+                const avg = slice.reduce((acc, game) => acc + game.accuracy, 0) / slice.length;
+                movingAvg.push(avg);
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: movingAvg.length}, (_, i) => `Game ${i + window}`),
+                    datasets: [{
+                        label: '5-Game Moving Average',
+                        data: movingAvg,
+                        borderColor: '#6b8afd',
+                        backgroundColor: 'rgba(107, 138, 253, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#888888' },
+                            grid: { color: '#404040' }
+                        },
+                        x: {
+                            ticks: { color: '#888888' },
+                            grid: { color: '#404040' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Time spent by subject
+        function createTimeChart() {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+            const topics = [...new Set(gameData.map(game => game.topic))];
+            const timeSpent = topics.map(topic => {
+                return gameData
+                    .filter(game => game.topic === topic)
+                    .reduce((acc, game) => acc + game.time, 0);
+            });
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: topics,
+                    datasets: [{
+                        data: timeSpent,
+                        backgroundColor: [
+                            '#00e3cc',
+                            '#6b8afd',
+                            '#ff6b6b',
+                            '#4ecdc4',
+                            '#45b7d1'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#e0e0e0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Generate AI insights
+        function generateInsights() {
+            const container = document.getElementById('insights-container');
+            const insights = [
+                {
+                    type: 'strength',
+                    text: 'You show consistent improvement in Biology topics with 15% accuracy gain over the past week.'
+                },
+                {
+                    type: 'opportunity',
+                    text: 'Physics concepts appear challenging - consider reviewing fundamental principles before attempting advanced topics.'
+                },
+                {
+                    type: 'pattern',
+                    text: 'Your performance peaks during morning sessions (9-11 AM). Consider scheduling difficult topics during this time.'
+                },
+                {
+                    type: 'recommendation',
+                    text: 'You have mastered basic C++ syntax. Ready to advance to object-oriented programming concepts.'
+                },
+                {
+                    type: 'milestone',
+                    text: 'Congratulations! You have maintained >80% accuracy for 5 consecutive Chemistry sessions.'
+                }
+            ];
+
+            insights.forEach(insight => {
+                const div = document.createElement('div');
+                div.className = 'insight';
+                
+                const icon = insight.type === 'strength' ? '💪' : 
+                           insight.type === 'opportunity' ? '🎯' :
+                           insight.type === 'pattern' ? '📊' :
+                           insight.type === 'recommendation' ? '💡' : '🏆';
+                           
+                div.innerHTML = `<strong>${icon} ${insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}:</strong> ${insight.text}`;
+                container.appendChild(div);
+            });
+        }
+
+        // Initialize dashboard
+        updateOverviewStats();
+        createProgressChart();
+        createTopicChart();
+        createLearningChart();
+        createTimeChart();
+        generateInsights();
+    </script>
+</body>
+</html>
